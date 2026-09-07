@@ -76,31 +76,48 @@ def atualizar_status(tribunal, grupo, status, detalhe_erro=None):
     """
     status: "rodando" | "erro" | "pausado" | "fora_do_horario"
 
-    "desde" só é atualizado quando o status realmente MUDA em
-    relação ao que já estava salvo — assim "rodando desde 08:00"
-    não fica se atualizando a cada ciclo, só quando volta a rodar
-    depois de um erro/pausa/fora do horário.
+    "desde" é atualizado quando o status MUDA em relação ao que já
+    estava salvo, OU quando passou muito tempo desde a última
+    atualização daquele tribunal — esse segundo caso cobre o
+    cenário em que o processo foi cancelado/reiniciado sem nunca
+    escrever outro status no meio (do ponto de vista do Firestore,
+    "rodando" nunca deixou de ser "rodando", então só comparar o
+    status não seria suficiente para perceber que é um reinício).
     """
 
     ref = _db_status.collection(COLECAO_STATUS).document(tribunal)
 
     try:
         doc_atual = ref.get()
-        status_anterior = doc_atual.to_dict().get("status") if doc_atual.exists else None
+        dados_atuais = doc_atual.to_dict() if doc_atual.exists else {}
     except Exception as erro:
         print(f"[status] Erro ao ler status atual de {tribunal}: {erro}")
-        status_anterior = None
+        dados_atuais = {}
+
+    status_anterior = dados_atuais.get("status")
+    atualizado_em_anterior = dados_atuais.get("atualizadoEm")
+
+    agora = datetime.now(timezone.utc)
+
+    LIMITE_REINICIO_MINUTOS = 15
+    passou_muito_tempo = False
+    if atualizado_em_anterior:
+        try:
+            minutos_desde_ultima = (agora - atualizado_em_anterior).total_seconds() / 60
+            passou_muito_tempo = minutos_desde_ultima > LIMITE_REINICIO_MINUTOS
+        except Exception:
+            passou_muito_tempo = False
 
     dados = {
         "tribunal": tribunal,
         "grupo": grupo,
         "status": status,
         "detalheErro": detalhe_erro if status == "erro" else None,
-        "atualizadoEm": datetime.now(timezone.utc),
+        "atualizadoEm": agora,
     }
 
-    if status != status_anterior:
-        dados["desde"] = datetime.now(timezone.utc)
+    if status != status_anterior or passou_muito_tempo:
+        dados["desde"] = agora
 
     try:
         ref.set(dados, merge=True)
