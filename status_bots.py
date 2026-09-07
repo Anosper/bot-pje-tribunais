@@ -148,10 +148,20 @@ def iniciar_heartbeat(grupo, intervalo_segundos=30):
 
     def _loop():
         ref = _db_status.collection("bots_heartbeat").document(grupo)
+
+        agora = datetime.now(timezone.utc)
+        try:
+            # Grava (sobrescrevendo) o início desta sessão — marca a
+            # fronteira entre "dado desta execução" e "sobra de uma
+            # execução anterior" para os documentos de status.
+            ref.set({"grupo": grupo, "sessaoIniciadaEm": agora, "ultimoHeartbeat": agora})
+        except Exception as erro:
+            print(f"[heartbeat] Erro ao gravar início de sessão de {grupo}: {erro}")
+
         while True:
             try:
                 ref.set(
-                    {"grupo": grupo, "ultimoHeartbeat": datetime.now(timezone.utc)},
+                    {"ultimoHeartbeat": datetime.now(timezone.utc)},
                     merge=True,
                 )
             except Exception as erro:
