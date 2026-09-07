@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+sessao_pje.json
+debug_login/
+debug_zero_resultados/
+firebase-service-account.json
+firebase-service-account-eproc.json
