@@ -99,7 +99,7 @@ def atualizar_status(tribunal, grupo, status, detalhe_erro=None):
 
     agora = datetime.now(timezone.utc)
 
-    LIMITE_REINICIO_MINUTOS = 15
+    LIMITE_REINICIO_MINUTOS = 1
     passou_muito_tempo = False
     if atualizado_em_anterior:
         try:
