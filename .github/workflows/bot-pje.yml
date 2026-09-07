@@ -56,4 +56,5 @@ jobs:
           PJE_SENHA_TRF1: ${{ secrets.PJE_SENHA_TRF1 }}
           PJE_SENHA_TRF5: ${{ secrets.PJE_SENHA_TRF5 }}
           IGNORAR_HORARIO: ${{ github.event.inputs.ignorar_horario }}
+          PYTHONUNBUFFERED: "1"
         run: python bot_pje.py
