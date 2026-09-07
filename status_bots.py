@@ -1,4 +1,6 @@
 import os
+import threading
+import time
 from datetime import datetime, timezone, timedelta
 
 import firebase_admin
@@ -99,7 +101,7 @@ def atualizar_status(tribunal, grupo, status, detalhe_erro=None):
 
     agora = datetime.now(timezone.utc)
 
-    LIMITE_REINICIO_MINUTOS = 1
+    LIMITE_REINICIO_MINUTOS = 15
     passou_muito_tempo = False
     if atualizado_em_anterior:
         try:
@@ -123,3 +125,38 @@ def atualizar_status(tribunal, grupo, status, detalhe_erro=None):
         ref.set(dados, merge=True)
     except Exception as erro:
         print(f"[status] Erro ao gravar status de {tribunal}: {erro}")
+
+
+# ============================================================
+# HEARTBEAT (sinal de vida do processo, independente de qual
+# tribunal está sendo processado no momento)
+# ============================================================
+
+def iniciar_heartbeat(grupo, intervalo_segundos=30):
+    """
+    Roda para sempre numa thread separada, escrevendo periodicamente
+    que o processo deste grupo ainda está vivo. Diferente do status
+    por tribunal (que só atualiza quando um tribunal termina de ser
+    processado), isso bate a cada `intervalo_segundos`, não importa
+    se o tribunal atual está demorando muito — por isso o site pode
+    usar um limite bem mais curto para detectar "Desligado" sem
+    confundir isso com um tribunal só lento.
+
+    Chame uma vez, no início do script (thread daemon — encerra
+    sozinha quando o processo principal termina).
+    """
+
+    def _loop():
+        ref = _db_status.collection("bots_heartbeat").document(grupo)
+        while True:
+            try:
+                ref.set(
+                    {"grupo": grupo, "ultimoHeartbeat": datetime.now(timezone.utc)},
+                    merge=True,
+                )
+            except Exception as erro:
+                print(f"[heartbeat] Erro ao gravar heartbeat de {grupo}: {erro}")
+            time.sleep(intervalo_segundos)
+
+    thread = threading.Thread(target=_loop, daemon=True)
+    thread.start()
