@@ -1001,6 +1001,8 @@ with sync_playwright() as p:
     print("Tribunais:", ", ".join(t["nome"] for t in TRIBUNAIS))
     print("Classes (padrão):", ", ".join(CLASSES_JUDICIAIS))
 
+    status_bots.iniciar_heartbeat(NOME_DO_GRUPO)
+
     # Roda em loop contínuo (voltando pro primeiro tribunal ao
     # terminar o último) até passar das 17h — a partir daí o
     # próprio script encerra sozinho, e o GitHub Actions dispara
