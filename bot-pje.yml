@@ -1,0 +1,50 @@
+name: Bot PJe - captação de processos
+
+on:
+  schedule:
+    # GitHub Actions tem um limite de 6h por execução, e o
+    # expediente (8h-17h Brasília) tem 9h — por isso disparamos
+    # 2 vezes: 8h cobre até ~14h, e 14h cobre o resto até 17h.
+    # Cron é sempre em UTC; Brasília = UTC-3 (sem horário de verão).
+    - cron: '0 11 * * 1-5'   # 08:00 em Brasília
+    - cron: '0 17 * * 1-5'   # 14:00 em Brasília
+  workflow_dispatch: {}  # permite rodar manualmente pelo GitHub também
+
+jobs:
+  captar-processos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350  # um pouco abaixo do teto de 6h do GitHub
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependências
+        run: |
+          pip install -r requirements.txt
+          playwright install --with-deps chromium
+
+      - name: Escrever credenciais do Firebase (a partir dos secrets)
+        run: |
+          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}" > firebase-service-account.json
+          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_EPROC_JSON }}" > firebase-service-account-eproc.json
+
+      - name: Rodar o bot (loop contínuo até 17h ou 6h de execução)
+        env:
+          BOT_CONFIG_JSON: ${{ secrets.BOT_CONFIG_JSON }}
+          PJE_USUARIO: ${{ secrets.PJE_USUARIO }}
+          PJE_TOTP_SECRET: ${{ secrets.PJE_TOTP_SECRET }}
+          PJE_SENHA_TJDFT: ${{ secrets.PJE_SENHA_TJDFT }}
+          PJE_SENHA_TJPA: ${{ secrets.PJE_SENHA_TJPA }}
+          PJE_SENHA_TJCE: ${{ secrets.PJE_SENHA_TJCE }}
+          PJE_SENHA_TJPI: ${{ secrets.PJE_SENHA_TJPI }}
+          PJE_SENHA_TJMA: ${{ secrets.PJE_SENHA_TJMA }}
+          PJE_SENHA_TJRO: ${{ secrets.PJE_SENHA_TJRO }}
+          PJE_SENHA_TRF1: ${{ secrets.PJE_SENHA_TRF1 }}
+          PJE_SENHA_TRF5: ${{ secrets.PJE_SENHA_TRF5 }}
+        run: python bot_pje.py
