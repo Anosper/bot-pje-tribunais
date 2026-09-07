@@ -8,7 +8,12 @@ on:
     # Cron é sempre em UTC; Brasília = UTC-3 (sem horário de verão).
     - cron: '0 11 * * 1-5'   # 08:00 em Brasília
     - cron: '0 17 * * 1-5'   # 14:00 em Brasília
-  workflow_dispatch: {}  # permite rodar manualmente pelo GitHub também
+  workflow_dispatch:
+    inputs:
+      ignorar_horario:
+        description: 'Rodar mesmo fora da janela 8h-17h (só para testes manuais)'
+        type: boolean
+        default: false
 
 jobs:
   captar-processos:
@@ -50,4 +55,5 @@ jobs:
           PJE_SENHA_TJRO: ${{ secrets.PJE_SENHA_TJRO }}
           PJE_SENHA_TRF1: ${{ secrets.PJE_SENHA_TRF1 }}
           PJE_SENHA_TRF5: ${{ secrets.PJE_SENHA_TRF5 }}
+          IGNORAR_HORARIO: ${{ github.event.inputs.ignorar_horario }}
         run: python bot_pje.py
