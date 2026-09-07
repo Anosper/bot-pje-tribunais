@@ -30,9 +30,12 @@ jobs:
           playwright install --with-deps chromium
 
       - name: Escrever credenciais do Firebase (a partir dos secrets)
+        env:
+          FIREBASE_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_EPROC_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_EPROC_JSON }}
         run: |
-          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}" > firebase-service-account.json
-          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_EPROC_JSON }}" > firebase-service-account-eproc.json
+          echo "$FIREBASE_JSON" > firebase-service-account.json
+          echo "$FIREBASE_EPROC_JSON" > firebase-service-account-eproc.json
 
       - name: Rodar o bot (loop contínuo até 17h ou 6h de execução)
         env:
