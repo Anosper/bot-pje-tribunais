@@ -1005,7 +1005,9 @@ with sync_playwright() as p:
     # terminar o último) até passar das 17h — a partir daí o
     # próprio script encerra sozinho, e o GitHub Actions dispara
     # a próxima leva (14h) ou o dia seguinte (8h) automaticamente.
-    while status_bots.horario_permitido():
+    IGNORAR_HORARIO = os.getenv("IGNORAR_HORARIO", "").lower() == "true"
+
+    while IGNORAR_HORARIO or status_bots.horario_permitido():
 
         print()
         print("##########################################")
@@ -1016,7 +1018,7 @@ with sync_playwright() as p:
             for tribunal in TRIBUNAIS:
                 nome_tribunal = tribunal["nome"]
 
-                if not status_bots.horario_permitido():
+                if not IGNORAR_HORARIO and not status_bots.horario_permitido():
                     print(f"Passou do horário permitido — parando a varredura em {nome_tribunal}.")
                     break
 
