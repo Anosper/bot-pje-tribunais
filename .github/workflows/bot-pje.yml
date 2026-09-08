@@ -34,13 +34,15 @@ jobs:
           pip install -r requirements.txt
           playwright install --with-deps chromium
 
-      - name: Escrever credenciais do Firebase (a partir dos secrets)
+      -       - name: Escrever credenciais do Firebase (a partir dos secrets)
         env:
           FIREBASE_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           FIREBASE_EPROC_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_EPROC_JSON }}
+          FIREBASE_FAILOVER_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_FAILOVER_JSON }}
         run: |
           echo "$FIREBASE_JSON" > firebase-service-account.json
           echo "$FIREBASE_EPROC_JSON" > firebase-service-account2.json
+          echo "$FIREBASE_FAILOVER_JSON" > firebase-service-account-failover.json
 
       - name: Rodar o bot (loop contínuo até 17h ou 6h de execução)
         env:
