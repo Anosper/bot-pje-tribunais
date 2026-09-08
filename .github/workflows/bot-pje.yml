@@ -40,7 +40,7 @@ jobs:
           FIREBASE_EPROC_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_EPROC_JSON }}
         run: |
           echo "$FIREBASE_JSON" > firebase-service-account.json
-          echo "$FIREBASE_EPROC_JSON" > firebase-service-account-eproc.json
+          echo "$FIREBASE_EPROC_JSON" > firebase-service-account2.json
 
       - name: Rodar o bot (loop contínuo até 17h ou 6h de execução)
         env:
