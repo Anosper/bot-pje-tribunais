@@ -104,11 +104,13 @@ print(" CONECTANDO AO FIREBASE")
 print("==========================================")
 try:
     from firebase_manager import FirebaseManager
+    from ultimo_visto import UltimoVisto
 
     fm = FirebaseManager([
         {"name": "principal", "cred_path": "firebase-service-account.json"},
         {"name": "failover", "cred_path": "firebase-service-account-failover.json"},
     ])
+    uv = UltimoVisto()
     db = fm.client()
     print(f"Firebase conectado com sucesso! (projeto ativo: {fm.active_project})")
 except Exception as erro:
@@ -349,11 +351,21 @@ def fazer_login(sessao, tribunal):
 # ============================================================
 # FUNÇÃO — VERIFICAR PROCESSO NO FIREBASE
 # ============================================================
-def processo_existe_no_firebase(numero):
+def processo_existe_no_firebase(numero, tribunal, classe):
     if not numero:
         return False
+
+    chave = f"{tribunal}||{classe}"  # cada combinação tribunal+classe tem seu próprio "último visto"
+
+    # Atalho local: se o número não mudou desde o último visto nessa
+    # combinação, nem precisa consultar o Firestore.
+    if not uv.eh_novo(chave, numero):
+        print(f"[JÁ EXISTE - cache local] {numero}")
+        return True
+
     try:
-        documento = db.collection("processos").document(numero).get()
+        documento_ref = db.collection("processos").document(numero)
+        documento = fm.get(documento_ref)
         if documento.exists:
             print(f"[JÁ EXISTE] {numero}")
             return True
@@ -364,10 +376,7 @@ def processo_existe_no_firebase(numero):
         return True
 
 
-# ============================================================
-# FUNÇÃO — SALVAR PROCESSO NO FIREBASE
-# ============================================================
-def salvar_processo_no_firebase(dados, tribunal_origem):
+def salvar_processo_no_firebase(dados, tribunal_origem, classe_origem):
     numero = dados.get("numero")
     if not numero:
         print()
@@ -376,20 +385,12 @@ def salvar_processo_no_firebase(dados, tribunal_origem):
     dados["tribunal_origem_consulta"] = tribunal_origem
     dados["dataCaptacao"] = datetime.now()
     dados["emProcessos"] = True
-
-    # Campo de expiração para a política de TTL do Firestore — o
-    # Firestore apaga o documento sozinho depois dessa data.
     dados["dataExpiracao"] = dados["dataCaptacao"] + timedelta(days=10)
-
-    # A data de autuação/distribuição vem em formatos diferentes em
-    # cada tribunal e normalizar todos é frágil demais para valer a
-    # pena. Como a deduplicação usa o NÚMERO do processo (não a
-    # data), gravamos a data de distribuição igual à data de
-    # captação, que é confiável e sempre no mesmo formato.
     dados["data_distribuicao"] = dados["dataCaptacao"]
-
     try:
-        db.collection("processos").document(numero).set(dados)
+        documento_ref = db.collection("processos").document(numero)
+        fm.set(documento_ref, dados)
+        uv.atualizar(f"{tribunal_origem}||{classe_origem}", numero)  # atualiza o marcador
         print()
         print("==========================================")
         print(" PROCESSO SALVO NO FIREBASE")
@@ -410,7 +411,6 @@ def salvar_processo_no_firebase(dados, tribunal_origem):
         print()
         print("ERRO AO SALVAR NO FIREBASE:", type(erro).__name__, erro)
         return False
-
 
 # ============================================================
 # PADRÃO — TAG DE PAPEL DA PARTE (reconhece parênteses aninhados)
@@ -866,10 +866,10 @@ def processar_pagina_de_processo(processo_pagina, tribunal_nome, classe, classe_
             return
 
     numero = dados["numero"]
-    if processo_existe_no_firebase(numero):
+    if processo_existe_no_firebase(numero, tribunal_nome, classe):
         print("Processo já estava cadastrado. Não será salvo novamente.")
     else:
-        salvar_processo_no_firebase(dados, tribunal_nome)
+        salvar_processo_no_firebase(dados, tribunal_nome, classe)
     try:
         processo_pagina.close()
         print("Janela do processo fechada.")
@@ -930,8 +930,7 @@ def processar_combinacao(pagina, tribunal, classe):
         classe_exigida = None
 
     numero_processo = primeiro.inner_text().strip()
-
-    if processo_existe_no_firebase(numero_processo):
+    if processo_existe_no_firebase(numero_processo, tribunal["nome"], classe):
         return
 
     print()
