@@ -107,7 +107,7 @@ try:
 
     fm = FirebaseManager([
         {"name": "principal", "cred_path": "firebase-service-account.json"},
-        {"name": "secundario", "cred_path": "firebase-service-account-2.json"},
+        {"name": "failover", "cred_path": "firebase-service-account-failover.json"},
     ])
     db = fm.client()
     print(f"Firebase conectado com sucesso! (projeto ativo: {fm.active_project})")
