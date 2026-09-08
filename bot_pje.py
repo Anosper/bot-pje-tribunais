@@ -103,17 +103,21 @@ print("==========================================")
 print(" CONECTANDO AO FIREBASE")
 print("==========================================")
 try:
-    credencial = credentials.Certificate("firebase-service-account.json")
-    firebase_admin.initialize_app(credencial)
-    db = firestore.client()
-    print("Firebase conectado com sucesso!")
+    from firebase_manager import FirebaseManager
+
+    fm = FirebaseManager([
+        {"name": "principal", "cred_path": "firebase-service-account.json"},
+        {"name": "secundario", "cred_path": "firebase-service-account-2.json"},
+    ])
+    db = fm.client()
+    print(f"Firebase conectado com sucesso! (projeto ativo: {fm.active_project})")
 except Exception as erro:
     print()
     print("==========================================")
     print(" ERRO AO CONECTAR AO FIREBASE")
     print("==========================================")
-    print("Tipo:", type(erro).__name__)
-    print("Detalhes:", erro)
+    print(f"Tipo: {type(erro).__name__}")
+    print(f"Detalhes: {erro}")
     raise
 
 
