@@ -351,29 +351,36 @@ def fazer_login(sessao, tribunal):
 # ============================================================
 # FUNÇÃO — VERIFICAR PROCESSO NO FIREBASE
 # ============================================================
+from google.api_core.exceptions import ResourceExhausted
+
 def processo_existe_no_firebase(numero, tribunal, classe):
     if not numero:
         return False
 
-    chave = f"{tribunal}||{classe}"  # cada combinação tribunal+classe tem seu próprio "último visto"
-
-    # Atalho local: se o número não mudou desde o último visto nessa
-    # combinação, nem precisa consultar o Firestore.
+    chave = f"{tribunal}||{classe}"
     if not uv.eh_novo(chave, numero):
         print(f"[JÁ EXISTE - cache local] {numero}")
         return True
 
-    try:
-        documento_ref = db.collection("processos").document(numero)
-        documento = fm.get(documento_ref)
-        if documento.exists:
-            print(f"[JÁ EXISTE] {numero}")
+    global db
+    for tentativa in range(2):  # tenta no projeto atual e, se estourar, 1x no próximo
+        try:
+            documento_ref = db.collection("processos").document(numero)
+            documento = fm.get(documento_ref)
+            if documento.exists:
+                print(f"[JÁ EXISTE] {numero}")
+                return True
+            print(f"[NOVO] {numero}")
+            return False
+        except ResourceExhausted:
+            print(f"Cota estourada em '{fm.active_project}'. Trocando de projeto...")
+            db = fm.client()  # já retorna o projeto seguinte
+        except Exception as erro:
+            print("ERRO AO CONSULTAR FIREBASE:", type(erro).__name__, erro)
             return True
-        print(f"[NOVO] {numero}")
-        return False
-    except Exception as erro:
-        print("ERRO AO CONSULTAR FIREBASE:", type(erro).__name__, erro)
-        return True
+
+    print("Nenhum projeto Firebase disponível no momento.")
+    return True
 
 
 def salvar_processo_no_firebase(dados, tribunal_origem, classe_origem):
@@ -387,30 +394,39 @@ def salvar_processo_no_firebase(dados, tribunal_origem, classe_origem):
     dados["emProcessos"] = True
     dados["dataExpiracao"] = dados["dataCaptacao"] + timedelta(days=10)
     dados["data_distribuicao"] = dados["dataCaptacao"]
-    try:
-        documento_ref = db.collection("processos").document(numero)
-        fm.set(documento_ref, dados)
-        uv.atualizar(f"{tribunal_origem}||{classe_origem}", numero)  # atualiza o marcador
-        print()
-        print("==========================================")
-        print(" PROCESSO SALVO NO FIREBASE")
-        print("==========================================")
-        print("Número:", dados.get("numero"))
-        print("Réu:", dados.get("reu"))
-        print("CPF/CNPJ:", dados.get("documento_reu"))
-        print("Classe:", dados.get("classe"))
-        print("Tribunal (extraído do número):", dados.get("tribunal"))
-        print("Tribunal (consulta):", tribunal_origem)
-        print("Autor:", dados.get("autor"))
-        print("Valor:", dados.get("valor_causa"))
-        print("Autuação (= data de captação):", dados.get("data_distribuicao"))
-        print("Data de captação:", dados.get("dataCaptacao"))
-        print("Em Processos:", dados.get("emProcessos"))
-        return True
-    except Exception as erro:
-        print()
-        print("ERRO AO SALVAR NO FIREBASE:", type(erro).__name__, erro)
-        return False
+
+    global db
+    for tentativa in range(2):
+        try:
+            documento_ref = db.collection("processos").document(numero)
+            fm.set(documento_ref, dados)
+            uv.atualizar(f"{tribunal_origem}||{classe_origem}", numero)
+            print()
+            print("==========================================")
+            print(" PROCESSO SALVO NO FIREBASE")
+            print("==========================================")
+            print("Número:", dados.get("numero"))
+            print("Réu:", dados.get("reu"))
+            print("CPF/CNPJ:", dados.get("documento_reu"))
+            print("Classe:", dados.get("classe"))
+            print("Tribunal (extraído do número):", dados.get("tribunal"))
+            print("Tribunal (consulta):", tribunal_origem)
+            print("Autor:", dados.get("autor"))
+            print("Valor:", dados.get("valor_causa"))
+            print("Autuação (= data de captação):", dados.get("data_distribuicao"))
+            print("Data de captação:", dados.get("dataCaptacao"))
+            print("Em Processos:", dados.get("emProcessos"))
+            return True
+        except ResourceExhausted:
+            print(f"Cota estourada em '{fm.active_project}'. Trocando de projeto...")
+            db = fm.client()
+        except Exception as erro:
+            print()
+            print("ERRO AO SALVAR NO FIREBASE:", type(erro).__name__, erro)
+            return False
+
+    print("Nenhum projeto Firebase disponível no momento para gravar.")
+    return False
 
 # ============================================================
 # PADRÃO — TAG DE PAPEL DA PARTE (reconhece parênteses aninhados)
