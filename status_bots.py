@@ -13,9 +13,11 @@ from firebase_admin import credentials, firestore
 
 # Caminho do arquivo de credencial do projeto botorion2. No Render,
 # isso deve ser um "Secret File" (veja instruções de deploy) —
-# localmente, é o mesmo arquivo .json que os bots eproc já usam.
+# localmente, é um arquivo .json próprio (não confundir com a
+# credencial do projeto de "processos" do eproc — são dois
+# projetos Firebase diferentes).
 CAMINHO_CREDENCIAL_BOTORION2 = os.getenv(
-    "BOTORION2_CREDENCIAL_PATH", "firebase-service-account-eproc.json"
+    "BOTORION2_CREDENCIAL_PATH", "firebase-service-account2.json"
 )
 
 _nome_app = "botorion2_status"
