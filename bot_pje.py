@@ -64,14 +64,6 @@ ARQUIVO_SESSAO = "sessao_pje.json"
 INTERVALO_ENTRE_VARREDURAS = 30
 
 NOME_DO_GRUPO = "pje"  # identifica de qual script/serviço veio, no painel de status
-
-
-# ============================================================
-# CONFIGURAÇÃO SENSÍVEL (tribunais, classes, valores mínimos)
-# Vem de um secret do GitHub Actions — nunca fica escrita no
-# código público. Veja BOT_CONFIG_JSON no workflow.
-# ============================================================
-
 _CONFIG_BRUTA = os.getenv("BOT_CONFIG_JSON")
 
 if not _CONFIG_BRUTA:
@@ -85,19 +77,10 @@ _CONFIG = json.loads(_CONFIG_BRUTA)
 CLASSES_JUDICIAIS = _CONFIG["classes_judiciais"]
 VALOR_MINIMO_CAUSA_POR_TRIBUNAL = _CONFIG["valor_minimo_por_tribunal"]
 TRIBUNAIS = _CONFIG["tribunais"]
-
-# As chaves de REGRA_SELECAO_PROCESSO precisam ser tuplas
-# (tribunal, classe) no código Python, mas JSON só aceita chaves
-# string — por isso vêm como "TRIBUNAL||CLASSE" e são convertidas
-# de volta aqui.
 REGRA_SELECAO_PROCESSO = {
     tuple(chave.split("||")): valor
     for chave, valor in _CONFIG.get("regra_selecao", {}).items()
 }
-
-# ============================================================
-# FIREBASE
-# ============================================================
 print()
 print("==========================================")
 print(" CONECTANDO AO FIREBASE")
@@ -109,6 +92,8 @@ try:
     fm = FirebaseManager([
         {"name": "principal", "cred_path": "firebase-service-account.json"},
         {"name": "failover", "cred_path": "firebase-service-account-failover.json"},
+        {"name": "failover2", "cred_path": "firebase-service-account-failover2.json"},
+        {"name": "failover3", "cred_path": "firebase-service-account-failover3.json"},
     ])
     uv = UltimoVisto()
     db = fm.client()
@@ -270,10 +255,6 @@ def diagnosticar_tela_de_login(pagina, tribunal_nome):
     print("==========================================")
 
 
-# ============================================================
-# FUNÇÃO — NAVEGAR COM RETRY (protege contra erros de rede
-# transitórios, ex: ERR_HTTP2_PROTOCOL_ERROR)
-# ============================================================
 def navegar_com_retry(pagina, url, tentativas=5, timeout=120000, wait_until="domcontentloaded"):
     ultimo_erro = None
     for tentativa in range(1, tentativas + 1):
@@ -348,10 +329,8 @@ def fazer_login(sessao, tribunal):
     return False
 
 
-# ============================================================
-# FUNÇÃO — VERIFICAR PROCESSO NO FIREBASE
-# ============================================================
 from google.api_core.exceptions import ResourceExhausted
+
 
 def processo_existe_no_firebase(numero, tribunal, classe):
     if not numero:
@@ -428,21 +407,10 @@ def salvar_processo_no_firebase(dados, tribunal_origem, classe_origem):
     print("Nenhum projeto Firebase disponível no momento para gravar.")
     return False
 
-# ============================================================
-# PADRÃO — TAG DE PAPEL DA PARTE (reconhece parênteses aninhados)
-# ============================================================
-# O PJe costuma marcar o papel da parte como "(EXECUTADO(A))",
-# "(AUTOR(A))", "(REQUERIDO(A))" etc — com um "(A)" aninhado dentro
-# do parêntese externo para indicar flexão de gênero. Um padrão
-# simples tipo \([A-ZÀ-Ú]{2,}\) não reconhece esse aninhamento e
-# acaba capturando muito mais texto do que devia (ícones, datas,
-# movimentações) até achar outro parêntese qualquer mais à frente.
+
 PADRAO_TAG_PAPEL = r"\([A-ZÀ-Ú]{2,}(?:\([A-Za-zÀ-ú]+\))?\)"
 
 
-# ============================================================
-# FUNÇÃO — EXTRAIR DOCUMENTO (CPF/CNPJ) COM VALIDAÇÃO
-# ============================================================
 def extrair_documento_do_texto(texto, inicio, fim=None):
     fim = fim if fim is not None else inicio + 1500
     trecho = texto[inicio:fim]
@@ -587,9 +555,6 @@ def extrair_dados_processo(pagina):
     return dados
 
 
-# ============================================================
-# FUNÇÃO — PREENCHER VALOR MÍNIMO
-# ============================================================
 def preencher_valor_minimo(pagina, tribunal_nome):
     try:
         valor_minimo = VALOR_MINIMO_CAUSA_POR_TRIBUNAL.get(tribunal_nome, "1000000")
@@ -702,16 +667,7 @@ def aguardar_overlay_ajax(pagina, timeout_ms=45000):
             continue
 
 
-# ============================================================
-# FUNÇÃO — FECHAR POPUPS BLOQUEANTES (avisos informativos)
-# ============================================================
 def fechar_popups_bloqueantes(pagina, timeout_ms=15000):
-    # Alguns tribunais mostram avisos informativos (ex: TJES —
-    # "certificado próximo de expirar") que ficam bloqueando cliques
-    # em campos até serem fechados. Cobre qualquer modal RichFaces
-    # visível (classe diferente da usada em aguardar_overlay_ajax),
-    # tentando fechar com um botão comum; se não achar botão, espera
-    # o overlay sumir sozinho.
     seletores_mascara = [
         ".rich-mpnl-mask-div-opaque",
         ".rich-mpnl-mask-div",
@@ -743,10 +699,6 @@ def fechar_popups_bloqueantes(pagina, timeout_ms=15000):
             try:
                 mascara.first.wait_for(state="hidden", timeout=timeout_ms)
             except Exception:
-                # Último recurso: força esconder via JS. O popup é só
-                # um aviso informativo (ex: certificado expirando) —
-                # não precisamos que ele seja "resolvido" de verdade,
-                # só que pare de bloquear cliques nos campos.
                 print("Popup não fechou por botão nem sumiu sozinho — forçando ocultar via JS.")
                 try:
                     mascara.first.evaluate("el => el.style.display = 'none'")
@@ -754,9 +706,6 @@ def fechar_popups_bloqueantes(pagina, timeout_ms=15000):
                     print("Não foi possível ocultar o popup via JS:", erro)
 
 
-# ============================================================
-# FUNÇÃO — PREENCHER FILTROS
-# ============================================================
 def preencher_filtros(pagina, classe, tribunal_nome):
     print(f"Preenchendo filtros — tribunal: {tribunal_nome} | classe: {classe}")
     fechar_popups_bloqueantes(pagina)
@@ -809,9 +758,6 @@ def ir_para_pagina_resultados(pagina, numero_pagina):
         return False
 
 
-# ============================================================
-# FUNÇÃO — SCREENSHOT DE DIAGNÓSTICO
-# ============================================================
 def salvar_screenshot_diagnostico(pagina, tribunal_nome, classe_nome):
     try:
         os.makedirs("debug_zero_resultados", exist_ok=True)
@@ -865,7 +811,6 @@ def processar_pagina_de_processo(processo_pagina, tribunal_nome, classe, classe_
         except Exception:
             pass
         return
-
     if classe_exigida:
         classe_encontrada = normalizar_classe(dados.get("classe"))
         classe_esperada = normalizar_classe(classe_exigida)
@@ -925,7 +870,6 @@ def processar_combinacao(pagina, tribunal, classe):
                 f"— não há um {indice + 1}º processo. Pulando esta pesquisa."
             )
             return
-
         primeiro = processos.nth(indice)
         classe_exigida = regra.get("classe_exigida")
 
@@ -1012,7 +956,6 @@ def abrir_tela_de_consulta(sessao, tribunal):
 # ============================================================
 with sync_playwright() as p:
     sessao = SessaoNavegador(p, HEADLESS, ARQUIVO_SESSAO)
-
     print()
     print("==========================================")
     print(" BOT MULTI-TRIBUNAL INICIADO")
@@ -1085,7 +1028,6 @@ with sync_playwright() as p:
 
                 classes_deste_tribunal = tribunal.get("classes", CLASSES_JUDICIAIS)
                 erro_na_captacao = None
-
                 for classe in classes_deste_tribunal:
                     print()
                     print(f"--- {nome_tribunal} / {classe} ---")
