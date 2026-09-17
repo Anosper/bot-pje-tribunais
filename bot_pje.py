@@ -551,6 +551,15 @@ def extrair_dados_processo(pagina):
             )
         else:
             dados["documento_reu"] = extrair_documento_do_texto(texto, inicio_bloco)
+    # Se o processo estiver em segredo de justiça, o PJe geralmente
+    # não escreve nada avisando isso -- só deixa os campos vazios. Por
+    # isso, qualquer campo que ainda esteja vazio aqui já vira esse
+    # rótulo direto (não tem "documento_autor" no dicionário do PJe,
+    # só os 4 campos abaixo).
+    dados["autor"] = dados["autor"] or "(segredo de justiça)"
+    dados["reu"] = dados["reu"] or "(segredo de justiça)"
+    dados["documento_reu"] = dados["documento_reu"] or "(segredo de justiça)"
+    dados["valor_causa"] = dados["valor_causa"] or "(segredo de justiça)"
 
     return dados
 
